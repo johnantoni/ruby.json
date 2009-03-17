@@ -1,0 +1,1 @@
+data = YAML.load(json)

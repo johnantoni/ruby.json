@@ -1,0 +1,200 @@
+# Treetop grammar for JSON.  Note: it doesn't handle Unicode very well.
+
+grammar JSONHelper
+ rule value
+   spaces v:(simple_literal / string / number / array / object) spaces  {
+     def resolve
+       v.resolve
+     end
+   }
+ end
+
+ rule spaces
+   [ \t\n\r]*
+ end
+
+ # SIMPLE LITERALS
+
+ rule simple_literal
+   ("true" / "false" / "null")  {
+     def resolve
+       case text_value
+         when "true"  : true
+         when "false" : false
+         when "null"  : nil
+       end
+     end
+   }
+ end
+
+ # NUMBERS
+
+ rule number
+   integer fractional:fractional? exponent:exponent? {
+     def resolve
+       if fractional.text_value.empty? && exponent.text_value.empty?
+         integer.text_value.to_i
+       else
+         text_value.to_f
+       end
+     end
+   }
+ end
+
+ rule integer
+   "-"? [1-9] digits
+   /
+   # single digit
+   "-"? [0-9]
+ end
+
+ rule fractional
+   "." digits
+ end
+
+ rule exponent
+   [eE] [-+]? digits
+ end
+
+ rule digits
+   [0-9]*
+ end
+
+ # STRINGS
+
+ rule string
+   "\"\""  {
+     def resolve
+       ""
+     end
+   }
+   /
+   "\"" characters:character* "\""  {
+     def resolve
+       characters.elements.map { |c| c.resolve }.join
+     end
+   }
+ end
+
+ rule character
+   # regular characters
+   (!"\"" !"\\" .)+  {
+     def resolve
+       text_value
+     end
+   }
+   /
+   # escaped: \\, \", and \/
+   "\\" char:("\"" / "\\" / "/")  {
+     def resolve
+       char.text_value
+     end
+   }
+   /
+   # escaped: \b, \f, \n, \r, and \t
+   "\\" char:[bfnrt]  {
+     def resolve
+       case char.text_value
+         when 'b' : "\b"
+         when 'f' : "\f"
+         when 'n' : "\n"
+         when 'r' : "\r"
+         when 't' : "\t"
+       end
+     end
+   }
+   /
+   # for Unicode that overlay ASCII values, we just use the ASCII value
+   "\\u00" digits:(hex_digit hex_digit)  {
+     def resolve
+       str = " "
+       str[0] = digits.text_value.hex
+       str
+     end
+   }
+   /
+   # for all other Unicode values use the null character
+   "\\u" digits1:(hex_digit hex_digit) digits2:(hex_digit hex_digit) {
+     def resolve
+       str = "  "
+       str[0] = digits1.textvalue.hex
+       str[1] = digits2.textvalue.hex
+       str
+     end
+   }
+ end
+
+ rule hex_digit
+   [0-9a-fA-F]
+ end
+
+ # ARRAYS
+
+ rule array
+   "[" spaces "]"  {
+     def resolve
+       Array.new
+     end
+   }
+   /
+   "[" spaces value_list spaces "]"  {
+     def resolve
+       value_list.resolve
+     end
+   }
+ end
+
+ rule value_list
+   value !(spaces ",")  {
+     def resolve
+       [ value.resolve ]
+     end
+   }
+   /
+   value spaces "," spaces value_list  {
+     def resolve
+       value_list.resolve.unshift(value.resolve)
+     end
+   }
+ end
+
+ # OBJECTS
+
+ rule object
+   "{" spaces "}"  {
+     def resolve
+       Hash.new
+     end
+   }
+   /
+   "{" spaces pair_list spaces "}"  {
+     def resolve
+       pair_list.resolve
+     end
+   }
+ end
+
+ rule pair_list
+   pair !(spaces ",")  {
+     def resolve
+       { pair.resolve[0] => pair.resolve[1] }
+     end
+   }
+   /
+   pair spaces "," spaces pair_list  {
+     def resolve
+       hash = pair_list.resolve
+       hash[pair.resolve[0]] = pair.resolve[1]
+       hash
+     end
+   }
+ end
+
+ rule pair
+   string spaces ":" spaces value  {
+     def resolve
+       [ string.resolve, value.resolve ]
+     end
+   }
+ end
+end

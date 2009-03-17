@@ -1,0 +1,103 @@
+# Treetop grammar for JSON for Ruby Quiz #155 by Clifford Heath.
+grammar Json
+rule json
+  value
+end
+
+rule object
+  '{' s pairs:pairs? s '}' s
+                      { def obj
+                          pairs.empty? ? {} : pairs.obj
+                        end
+                      }
+end
+
+rule pairs
+  member rest:(s ',' s member)*
+                      { def obj
+                          rest.elements.inject({eval(member.k.text_value) => member.value.obj}) { |h, e|
+                              h[eval(e.member.k.text_value)] = e.member.value.obj
+                              h
+                            }
+                        end
+                      }
+end
+
+rule member           # key/value pair of an object
+  k:string s ':' s value
+end
+
+rule array
+  '[' s e:elements? s ']'
+                      { def obj
+                          e.empty? ? [] : e.obj
+                        end
+                      }
+end
+
+rule elements         # elements of an array
+  value rest:(s ',' s value)*
+                      { def obj
+                          rest.elements.inject([value.obj]) { |a, e|
+                              a << e.value.obj
+                            }
+                        end
+                      }
+end
+
+rule value
+  s alt:(string / number / object / array
+  / 'true'            { def obj; true; end }
+  / 'false'           { def obj; false; end }
+  / 'null'            { def obj; nil; end }
+  )
+                      { def obj; alt.obj; end }
+end
+
+rule string
+  '"' char* '"'       { def obj
+                          eval(
+                            # Strip Unicode characters down to the chr equivalent.
+                            # Note that I'm cheating here: '"\\u4321"' should assert,
+                            # and there are cases that will succeed but corrupt the data.
+                            # This should be handled in the "char" rule.
+                            text_value.gsub(/\\u..../) { |unicode|
+                              eval("0x"+unicode[2..-1]).chr
+                            }
+                          )
+                        end
+                      }
+end
+
+rule char
+  '\\' [\"\\\/bfnrt]
+  / '\\u' hex hex hex hex
+  / (![\\"] .)
+end
+
+rule hex
+  [0-9A-Fa-f]
+end
+
+rule number
+  int frac? exp?      { def obj; eval(text_value); end }
+end
+
+rule int              # Any integer
+  '-'? ([1-9] [0-9]* / '0')
+    { def obj; eval(text_value); end }
+end
+
+rule frac             # The fractional part of a floating-point number
+  '.' [0-9]+
+end
+
+rule exp              # An exponent
+  [eE] [-+]? [0-9]+
+end
+
+rule s                # Any amount of whtespace
+  [ \t\n\t]*
+end
+
+end
