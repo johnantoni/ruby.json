@@ -1,4 +1,8 @@
-#sudo gem install json
+# install json library
+# sudo gem install json
+
+# good json/ruby example
+# http://pmwjournal.blogspot.com/2006/03/json-ajax-ruby-on-rails.html
 
 require 'rubygems'
 require 'json'
